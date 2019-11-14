@@ -4,6 +4,8 @@ use std::f32;
 use std::fmt;
 use std::ops::Index;
 use std::str;
+use std::fs::File;
+use std::io::prelude::*;
 
 pub struct ByteBuffer<'a> {
   data: &'a [u8],
@@ -246,22 +248,25 @@ impl Def {
 
 #[derive(Debug, PartialEq)]
 pub struct Schema {
+  pub name : String,
+
   pub defs: Vec<Def>,
 
   pub def_name_to_index: HashMap<String, usize>,
+
 }
 
 impl Schema {
-  pub fn new(mut defs: Vec<Def>) -> Schema {
+  pub fn new(name: String, mut defs: Vec<Def>) -> Schema {
     let mut def_name_to_index = HashMap::new();
     for (i, def) in defs.iter_mut().enumerate() {
       def.index = i as i32;
       def_name_to_index.insert(def.name.clone(), i);
     }
-    Schema {defs, def_name_to_index}
+    Schema {name, defs, def_name_to_index}
   }
 
-  pub fn decode(bytes: &[u8]) -> Result<Schema, ()> {
+  pub fn decode(name: String, bytes: &[u8]) -> Result<Schema, ()> {
     let mut defs = Vec::new();
     let mut bb = ByteBuffer::new(bytes);
     let definition_count = bb.read_var_uint()?;
@@ -288,7 +293,17 @@ impl Schema {
       defs.push(Def::new(name, kind, fields));
     }
 
-    Ok(Schema::new(defs))
+    Ok(Schema::new(name, defs))
+  }
+
+  pub fn save_to(target: String, bytes: Vec<u8>) -> std::io::Result<()> {
+    let mut pos = 0;
+    let mut buffer = File::create(target)?;
+    while pos < bytes.len() {
+        let bytes_written = buffer.write(&bytes[pos..])?;
+        pos += bytes_written;
+    }
+    Ok(())
   }
 
   pub fn encode(&self) -> Vec<u8> {
